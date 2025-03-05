@@ -1,0 +1,19 @@
+{
+  "name": "backend_project",
+  "version": "1.0.0",
+  "description": "trying to build a backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nodejs",
+    "javascript",
+    "express"
+  ],
+  "author": "Joel Mathew Samuel",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
