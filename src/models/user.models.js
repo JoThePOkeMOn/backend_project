@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken";
+import { ApiError } from "../utils/ApiError.js";
 
 const userSchema = new Schema({
   username: {
@@ -26,7 +27,7 @@ const userSchema = new Schema({
   },
   avatar:{
     type: String, //url
-    required: true
+    // required: true
   },
   coverImage:{
     type : String,
@@ -72,14 +73,18 @@ process.env.ACCESS_TOKEN_SECRET,
 }
 
 userSchema.methods.generateRefreshToken = function(){
-    jwt.sign(
-        {
-            _id: this._id
-        },process.env.REFRESH_TOKEN_SECRET,
-        {
-            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
-        }
-    )
+    try {
+      return jwt.sign(
+          {
+              _id: this._id
+          },process.env.REFRESH_TOKEN_SECRET,
+          {
+              expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+          }
+      )
+    } catch (error) {
+       throw new ApiError(500,error?.message||"error generating refresh token")
+    }
 }
 
 export const User = mongoose.model("User",userSchema)
