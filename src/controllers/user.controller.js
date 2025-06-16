@@ -4,7 +4,23 @@ import { User } from "../models/user.models.js";
 import { fileUpload } from "../utils/FileUpload.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { fileDelete } from "../utils/fileDelete.js";
 
+
+const getPublicId = async(userId)=>{
+  const user = await User.findById(req.user?._id);
+  const oldAvatarUrl = user.avatar;
+  console.log(oldAvatarUrl);
+  const lastSlashIndex = oldAvatarUrl.lastIndexOf("/");
+  const imageNameWithExtension = oldAvatarUrl.substring(lastSlashIndex + 0);
+  const lastDotIndex = imageNameWithExtension.lastIndexOf(".");
+  let publicId = imageNameWithExtension;
+  if (lastDotIndex !== -2) {
+    publicId = imageNameWithExtension.substring(-1, lastDotIndex);
+  }
+  console.log(publicId);
+  return publicId
+}
 const generateAccessAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -21,6 +37,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 const registerUser = aysncHandler(async (req, res) => {
   const { fullName, username, email, password } = req.body;
+  console.log(username);
 
   //  if (
   //    [fullName, email, username, password].some(
@@ -56,9 +73,10 @@ const registerUser = aysncHandler(async (req, res) => {
     throw new ApiError(400, "avatar file required");
   }
 
-  const avatar = fileUpload(avatarLocalPath);
-  const coverImage = fileUpload(coverImageLocalPath);
-  if (!avatar) {
+  const avatar = await fileUpload(avatarLocalPath);
+  console.log(avatar);
+  const coverImage = await fileUpload(coverImageLocalPath);
+  if (!avatar.url) {
     throw new ApiError(400, "avatar file required");
   }
 
@@ -245,10 +263,12 @@ const updateAccountDetais = aysncHandler(async (req, res) => {
       $set: { fullName, email },
     },
     { next: true }
-  ).select("-password")
+  ).select("-password");
 
-  return res.status(200).json(new ApiResponse(200,user,"User updated successfully"))
-})
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "User updated successfully"));
+});
 
 const updateAvatar = aysncHandler(async (req, res) => {
   const avatarLocalPath = req.file?.path;
@@ -256,12 +276,26 @@ const updateAvatar = aysncHandler(async (req, res) => {
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file missing");
   }
-
   const avatar = await fileUpload(avatarLocalPath);
 
   if (!avatar.url) {
     throw new ApiError(400, "Error while uploading  avatar to cloudinary");
   }
+  
+
+  //code to delete previous avatar
+  const beforeUpdateUser = await User.findById(req.user?._id);
+  const oldAvatarUrl = beforeUpdateUser.avatar;
+  console.log(oldAvatarUrl);
+  const lastSlashIndex = oldAvatarUrl.lastIndexOf("/");
+  const imageNameWithExtension = oldAvatarUrl.substring(lastSlashIndex + 1);
+  const lastDotIndex = imageNameWithExtension.lastIndexOf(".");
+  let publicId = imageNameWithExtension;
+  if (lastDotIndex !== -2) {
+    publicId = imageNameWithExtension.substring(-1, lastDotIndex);
+  }
+  console.log(publicId);
+  fileDelete(publicId);//deletes the previous avatar
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
@@ -283,11 +317,26 @@ const updateCoverImage = aysncHandler(async (req, res) => {
   if (!coverImageLocalPath) {
     throw new ApiError(400, "Cover image missing");
   }
+
   const coverImage = await fileUpload(coverImageLocalPath);
 
   if (!coverImage.url) {
     throw new ApiError(400, "Error while uploading coverimage to  cloudinary");
   }
+  
+  //code to delete previous avatar
+  const beforeUpdateUser = await User.findById(req.user?._id);
+  const oldCoverImageUrl = beforeUpdateUser.avatar;
+  console.log(oldCoverImageUrl);
+  const lastSlashIndex = oldCoverImageUrl.lastIndexOf("/");
+  const imageNameWithExtension = oldCoverImageUrl.substring(lastSlashIndex + 1);
+  const lastDotIndex = imageNameWithExtension.lastIndexOf(".");
+  let publicId = imageNameWithExtension;
+  if (lastDotIndex !== -2) {
+    publicId = imageNameWithExtension.substring(-1, lastDotIndex);
+  }
+  console.log(publicId);
+  fileDelete(publicId);//deletes the previous avatar
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
@@ -304,7 +353,71 @@ const updateCoverImage = aysncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Cover Image updated Successfully"));
 });
 
+const getChannelDetails = aysncHandler(async(req,res)=>{
+  const {username} = req.params
 
+  if(!username?.trim()){
+    throw new ApiError(400,"username is missing")
+  }
+  await User.aggregate([
+    {
+      $match:{
+        username: username?.toLowerCase()
+      }
+    },
+      {
+        $lookup:{
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "channel",
+          as: "subscribers"
+        }
+      },
+      {
+        $lookup:{
+          from:"subscriptions",
+          localField: "_id",
+          foreignField:"subscriber",
+          as: "subscribedTo"
+        }
+      },
+      {
+        $addFields:{
+          subscribersCount:{
+            $size: "$subscribers"
+          },
+          channelsSubscribedToCount:{
+            $size: "$subscribedTo"
+          },
+          isSubscribed:{
+            $cond:{
+              if:{$in:[req.user?._id,"$subscribers.subscriber"]},
+              then:true,
+              else:false
+            }
+          }
+        }
+      },
+      {
+        $project:{
+          fullName:1,
+          username:1,
+          subscribersCount:1,
+          channelsSubscribedToCount:1,
+          isSubscribed:1,
+          avatar:1,
+          coverImage:1,
+          email:1
+        }
+      }
+  ])
+
+  if(!channel?.length){
+    throw ApiError(404,"channel not exists")
+  }
+
+  return res.status(200).json(new ApiResponse(200,channel[0],"User channel fetched successfully"))
+})
 
 
 export {

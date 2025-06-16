@@ -14,7 +14,7 @@ import fs from "fs"
         resource_type : "auto"
     })
     console.log("File is uploaded",response.url)
-    // fs.unlinkSync(LocalPathName)
+     fs.unlinkSync(LocalPathName)
     return response
    } catch (error) {
      fs.unlinkSync(LocalPathName);
